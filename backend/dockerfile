@@ -1,0 +1,30 @@
+# ---------- Stage 1: Build ----------
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy dependency definition
+COPY package*.json ./
+
+# Clean install dependencies
+RUN npm ci --legacy-peer-deps
+
+# Copy application source
+COPY . .
+
+# ---------- Stage 2: Production ----------
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy build artifacts and dependencies from builder stage
+COPY --from=builder /app /app
+
+# Prune development dependencies to keep image light
+RUN npm prune --production
+
+ENV NODE_ENV=production
+
+EXPOSE 5000
+
+CMD ["node", "app.js"]
