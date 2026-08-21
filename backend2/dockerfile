@@ -1,0 +1,55 @@
+# ---------- Stage 1: Build ----------
+FROM python:3.12-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+# Install compiler/build dependencies for C-extensions if any
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt ./
+
+# Build dependencies inside a prefix path
+RUN pip install --upgrade pip && \
+    pip install --prefix=/install -r requirements.txt
+
+# ---------- Stage 2: Runtime ----------
+FROM python:3.12-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+# Install runtime OpenCV system library requirements
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy built packages from builder stage
+COPY --from=builder /install /usr/local
+
+# Copy application source
+COPY . .
+
+EXPOSE 8000
+
+# Run in production mode without reload
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
